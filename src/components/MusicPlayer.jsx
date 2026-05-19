@@ -246,6 +246,7 @@ export default function MusicPlayer({ defaultTracks, customTracks, onPlaylistUpd
       {/* Record player body & record disc */}
       <img src={assets.recordPlayer} className="record-player" alt="" draggable={false} />
       <img
+        key={isPink ? "pink-record" : "blue-record"}
         src={currentFrames[recordFrame]}
         className={`record-player ${swapping ? 'record-slide-out' : ''}`}
         alt=""
@@ -253,6 +254,7 @@ export default function MusicPlayer({ defaultTracks, customTracks, onPlaylistUpd
       />
       {swapping && (
         <img
+          key={isPink ? "blue-record" : "pink-record"}
           src={incomingFrames[0]}
           className="record-player record-slide-in"
           alt=""
