@@ -1,25 +1,68 @@
 import { useState, useRef, useEffect, useCallback } from 'react';
 
-// List of public Piped instances for high availability YouTube stream resolving
+// Hardcoded high-availability backup list of Piped instances
 const PIPED_INSTANCES = [
-  'https://pipedapi.kavin.rocks',
-  'https://pipedapi.syncord.org',
-  'https://api.piped.yt',
-  'https://pipedapi.colbyland.xyz',
-  'https://piped-api.garudalinux.org',
-  'https://pipedapi.us.to'
+  'https://pipedapi.adminforge.de', // Germany - Very high uptime and fast responses in Europe
+  'https://api.piped.private.coffee', // Austria - Stable instance verified active
+  'https://pipedapi.kavin.rocks', // USA/India - Official instance
+  'https://pipedapi.syncord.org', // Stable community instance
+  'https://pipedapi.us.to', // USA - Good alternative
+  'https://pipedapi.leptons.xyz' // Stable alternative
 ];
+
+// Dynamic cache of active instances fetched at runtime
+let dynamicInstances = [];
+
+/**
+ * Background worker to fetch currently active Piped instances from the official checker.
+ * Prepend active servers to provide 100% future-proofing.
+ */
+async function fetchDynamicInstances() {
+  try {
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 3500); // 3.5s fast fetch
+
+    const res = await fetch('https://piped-instances.kavin.rocks/', { signal: controller.signal });
+    clearTimeout(timeoutId);
+
+    if (!res.ok) return;
+    const data = await res.json();
+
+    if (Array.isArray(data)) {
+      // Filter out instances with high uptime and format URLs
+      const urls = data
+        .filter(item => item.api_url && item.uptime_24h > 92 && item.up_to_date)
+        .map(item => item.api_url.replace(/\/$/, ''));
+
+      if (urls.length > 0) {
+        dynamicInstances = [...new Set(urls)];
+        console.log('[Cupid Audio] Dynamic active Piped API list loaded successfully:', dynamicInstances);
+      }
+    }
+  } catch (err) {
+    console.warn('[Cupid Audio] Failed to fetch dynamic instances (CORS/network), utilizing pre-packed high availability list.', err);
+  }
+}
+
+// Fire dynamic fetch in background on script load
+if (typeof window !== 'undefined') {
+  fetchDynamicInstances();
+}
 
 /**
  * Robust helper to resolve direct audio stream from a YouTube video ID.
- * Tries multiple public Piped instances until one succeeds.
+ * Tries dynamic instances first, then hardcoded backups.
  */
 async function resolveYoutubeStream(videoId) {
   let lastError = null;
-  for (const instance of PIPED_INSTANCES) {
+  
+  // Merge dynamic instances with our hardcoded fallbacks, removing duplicates
+  const instances = [...new Set([...dynamicInstances, ...PIPED_INSTANCES])];
+  
+  for (const instance of instances) {
     try {
       const controller = new AbortController();
-      const timeoutId = setTimeout(() => controller.abort(), 4000); // 4s timeout per instance
+      const timeoutId = setTimeout(() => controller.abort(), 10000); // 10s timeout per instance
 
       const res = await fetch(`${instance}/streams/${videoId}`, { signal: controller.signal });
       clearTimeout(timeoutId);
@@ -42,7 +85,7 @@ async function resolveYoutubeStream(videoId) {
         };
       }
     } catch (err) {
-      console.warn(`Piped instance ${instance} failed to resolve ${videoId}:`, err);
+      console.warn(`[Cupid Audio] Piped instance ${instance} failed to resolve ${videoId}:`, err);
       lastError = err;
     }
   }
@@ -65,6 +108,10 @@ export default function useAudio(tracks, playMode = 'normal') {
   const [isLoading, setIsLoading] = useState(false);
   const [loadingError, setLoadingError] = useState(null);
 
+  // Auto-recovery state and refs
+  const [reloadTrigger, setReloadTrigger] = useState(0);
+  const retryRef = useRef(0);
+
   const [volume, setVolumeState] = useState(() => {
     const saved = localStorage.getItem('cupid-volume');
     return saved !== null ? parseFloat(saved) : 0.8;
@@ -74,6 +121,11 @@ export default function useAudio(tracks, playMode = 'normal') {
   const track = tracks[trackIndex] ?? { title: 'No track', artist: '', file: '', art: null };
   const audio = audioRef.current;
   audio.volume = muted ? 0 : volume;
+
+  // Reset retry counter whenever track changes
+  useEffect(() => {
+    retryRef.current = 0;
+  }, [trackIndex]);
 
   // Sync index when tracks array length drops or changes
   const prevTracksRef = useRef(tracks);
@@ -148,7 +200,7 @@ export default function useAudio(tracks, playMode = 'normal') {
     });
   }, [volume, audio]);
 
-  // Load track when index or playlist changes
+  // Load track when index, playlist, or reload trigger changes
   useEffect(() => {
     const t = tracks[trackIndex];
     if (!t) {
@@ -202,7 +254,7 @@ export default function useAudio(tracks, playMode = 'normal') {
           audio.play().catch(() => {});
         }
       } catch (err) {
-        console.error('Failed to load audio source:', err);
+        console.error('[Cupid Audio] Failed to load audio source:', err);
         if (active) {
           setLoadingError('Failed to load song stream');
           setIsLoading(false);
@@ -214,7 +266,7 @@ export default function useAudio(tracks, playMode = 'normal') {
     return () => {
       active = false;
     };
-  }, [trackIndex, tracks, audio]);
+  }, [trackIndex, tracks, audio, reloadTrigger]);
 
   // Handle standard audio event listeners and Media Session updates
   useEffect(() => {
@@ -248,6 +300,31 @@ export default function useAudio(tracks, playMode = 'normal') {
       next();
     };
 
+    const onError = (e) => {
+      console.error('[Cupid Audio] Audio element loading/playback error:', e);
+      const t = tracks[trackIndex];
+      
+      // Attempt auto-recovery for YouTube streams
+      if (t && t.source === 'youtube' && retryRef.current < 2) {
+        retryRef.current += 1;
+        console.warn(`[Cupid Audio] Stream failed. Auto-retrying with a fresh Piped resolution (attempt ${retryRef.current}/2)...`);
+        
+        // Wait 1 second before retrying to let the network stabilize
+        setTimeout(() => {
+          setReloadTrigger(c => c + 1);
+        }, 1000);
+      } else {
+        setLoadingError('Riproduzione fallita. Ripristino in corso...');
+        setIsLoading(false);
+        setIsPlaying(false);
+        
+        // Auto-skip to the next song after 3.5 seconds so the app never freezes
+        setTimeout(() => {
+          next();
+        }, 3500);
+      }
+    };
+
     const updateMediaSessionState = (state) => {
       if ('mediaSession' in navigator) {
         navigator.mediaSession.playbackState = state;
@@ -259,6 +336,7 @@ export default function useAudio(tracks, playMode = 'normal') {
     audio.addEventListener('play', onPlay);
     audio.addEventListener('pause', onPause);
     audio.addEventListener('ended', onEnded);
+    audio.addEventListener('error', onError);
 
     return () => {
       audio.removeEventListener('timeupdate', onTimeUpdate);
@@ -266,8 +344,9 @@ export default function useAudio(tracks, playMode = 'normal') {
       audio.removeEventListener('play', onPlay);
       audio.removeEventListener('pause', onPause);
       audio.removeEventListener('ended', onEnded);
+      audio.removeEventListener('error', onError);
     };
-  }, [audio, next]);
+  }, [audio, next, tracks, trackIndex, setReloadTrigger]);
 
   // Synchronize system media session controls (iOS/Android Lock Screen widgets)
   useEffect(() => {
