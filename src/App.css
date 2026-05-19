@@ -1,0 +1,742 @@
+/* ── Font Face ── */
+@font-face {
+  font-family: 'Rainyhearts';
+  src: url('/fonts/rainyhearts.ttf') format('truetype');
+  font-weight: normal;
+  font-style: normal;
+}
+
+/* ── Global Styles ── */
+body {
+  margin: 0;
+  padding: 0;
+  background-color: #1a1218;
+  font-family: 'Rainyhearts', monospace;
+  image-rendering: pixelated;
+  overflow: hidden;
+  user-select: none;
+}
+
+.app-root {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  width: 100vw;
+  height: 100vh;
+  background: radial-gradient(circle, #2c1626 0%, #150912 100%);
+  position: relative;
+}
+
+.player-wrapper {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  width: 100%;
+  height: 100%;
+}
+
+/* ── Responsive Scaling Core ── */
+.player {
+  --player-width: 320px; /* Small screen default */
+  position: relative;
+  width: var(--player-width);
+  height: calc(var(--player-width) * 497 / 306);
+  overflow: hidden;
+  border-radius: calc(5 / 306 * var(--player-width));
+  clip-path: inset(0 0 0 calc(3 / 306 * var(--player-width)));
+  --color-title: #78364F;
+  --color-primary: #5a3a4a;
+  --color-secondary: #8a6a7a;
+  --color-panel-text: #F6CFC8;
+  box-shadow: 0 10px 40px rgba(0, 0, 0, 0.7);
+  transition: width 0.3s ease, height 0.3s ease;
+}
+
+/* On medium screen and tablets, scale slightly for better legibility */
+@media (min-width: 480px) {
+  .player {
+    --player-width: 380px;
+  }
+}
+
+/* On desktops, maximize the beautiful details */
+@media (min-width: 768px) {
+  .player {
+    --player-width: 420px;
+  }
+}
+
+.player.theme-blue {
+  --color-title: #063940;
+  --color-primary: #063940;
+  --color-secondary: #1a6b6b;
+  --color-panel-text: #C8D3F6;
+}
+
+/* ── Layers Layout ── */
+.layer {
+  position: absolute;
+  top: calc(-23 / 306 * var(--player-width));
+  left: calc(-110 / 306 * var(--player-width));
+  width: calc(526 / 306 * var(--player-width));
+  height: calc(526 / 306 * var(--player-width));
+  image-rendering: pixelated;
+  pointer-events: none;
+  user-select: none;
+}
+
+.window-title {
+  position: absolute;
+  left: calc((134 - 110) / 306 * var(--player-width));
+  top: calc((50 - 23) / 306 * var(--player-width));
+  font-family: 'Rainyhearts', monospace;
+  font-size: calc(16 / 306 * var(--player-width));
+  color: var(--color-title);
+  z-index: 50;
+  pointer-events: none;
+  text-shadow: 1px 1px 0px rgba(255, 255, 255, 0.4);
+}
+
+/* ── Buttons Hotspots ── */
+.btn {
+  position: absolute;
+  width: calc(24 / 306 * var(--player-width));
+  height: calc(24 / 306 * var(--player-width));
+  z-index: 150;
+  cursor: pointer;
+  border-radius: 50%;
+  pointer-events: auto;
+}
+
+/* Navigation & Settings button coordinates overlay */
+.btn-settings {
+  left: calc((305 - 110) / 306 * var(--player-width));
+  top: calc((48 - 23) / 306 * var(--player-width));
+}
+
+.settings-layer {
+  transform: scale(0.85);
+  transform-origin: calc(310 / 512 * 100%) calc(57 / 512 * 100%);
+}
+
+.btn-prev {
+  left: calc((172 - 110) / 306 * var(--player-width));
+  top: calc((418 - 23) / 306 * var(--player-width));
+  width: calc(44 / 306 * var(--player-width));
+  height: calc(31 / 306 * var(--player-width));
+  border-radius: calc(4 / 306 * var(--player-width));
+}
+
+.btn-play {
+  left: calc((240 - 110) / 306 * var(--player-width));
+  top: calc((418 - 23) / 306 * var(--player-width));
+  width: calc(44 / 306 * var(--player-width));
+  height: calc(31 / 306 * var(--player-width));
+  border-radius: calc(4 / 306 * var(--player-width));
+}
+
+.btn-next {
+  left: calc((310 - 110) / 306 * var(--player-width));
+  top: calc((418 - 23) / 306 * var(--player-width));
+  width: calc(44 / 306 * var(--player-width));
+  height: calc(31 / 306 * var(--player-width));
+  border-radius: calc(4 / 306 * var(--player-width));
+}
+
+/* ── Record Animation Canvas ── */
+.record-player {
+  position: absolute;
+  width: calc(200 / 306 * var(--player-width));
+  left: 50%;
+  top: calc(120 / 306 * var(--player-width));
+  transform: translateX(-50%);
+  image-rendering: pixelated;
+  pointer-events: none;
+  user-select: none;
+  z-index: 10;
+}
+
+.frame-overlay {
+  z-index: 15;
+}
+
+.layer-ui {
+  z-index: 20;
+}
+
+.record-slide-out {
+  animation: slide-out 0.6s ease-in forwards;
+}
+
+.record-slide-in {
+  animation: slide-in 0.6s ease-out forwards;
+}
+
+@keyframes slide-out {
+  0% { transform: translate(-50%, 0); }
+  100% { transform: translate(calc(-50% - 60vw), 20vw); }
+}
+
+@keyframes slide-in {
+  0% { transform: translate(calc(-50% - 60vw), 20vw); }
+  100% { transform: translate(-50%, 0); }
+}
+
+/* ── Album Frame ── */
+.album-frame-layer {
+  left: calc(-110 / 306 * var(--player-width) - 1 / 306 * var(--player-width));
+  top: calc(-23 / 306 * var(--player-width));
+  z-index: 45;
+  width: calc(526 / 306 * var(--player-width));
+  height: calc(526 / 306 * var(--player-width));
+}
+
+.album-mask {
+  position: absolute;
+  left: calc((146 - 110) / 306 * var(--player-width));
+  top: calc((356 - 23) / 306 * var(--player-width));
+  width: calc(42 / 306 * var(--player-width));
+  height: calc(42 / 306 * var(--player-width));
+  clip-path: url(#album-mask);
+  overflow: hidden;
+  z-index: 40;
+  pointer-events: none;
+}
+
+.album-art {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  image-rendering: pixelated;
+}
+
+/* ── Now Playing & Text marquee ── */
+.now-playing {
+  position: absolute;
+  left: calc((195 - 110) / 306 * var(--player-width));
+  top: calc((351 - 23) / 306 * var(--player-width));
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  z-index: 50;
+  pointer-events: none;
+  width: calc(180 / 306 * var(--player-width));
+}
+
+.track-info {
+  display: flex;
+  flex-direction: column;
+  text-align: left;
+}
+
+.now-playing-label-container {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  pointer-events: auto;
+}
+
+.now-playing-label {
+  font-size: calc(10 / 306 * var(--player-width));
+  color: var(--color-secondary);
+}
+
+/* Sweet tiny blinking love letter envelope link */
+.love-letter-btn {
+  background: none;
+  border: none;
+  font-size: calc(14 / 306 * var(--player-width));
+  cursor: pointer;
+  padding: 0;
+  display: flex;
+  align-items: center;
+  line-height: 1;
+  pointer-events: auto;
+  transition: transform 0.2s ease;
+}
+
+.love-letter-btn:hover {
+  transform: scale(1.3);
+}
+
+.track-title {
+  font-size: calc(20 / 306 * var(--player-width));
+  color: var(--color-primary);
+  white-space: nowrap;
+  display: inline-block;
+}
+
+.marquee-container {
+  overflow: hidden;
+  white-space: nowrap;
+  width: 100%;
+  display: flex;
+}
+
+.marquee-scroll {
+  display: inline-block;
+  animation: marquee 9s linear infinite;
+}
+
+.marquee-gap {
+  margin-left: calc(30 / 306 * var(--player-width));
+}
+
+@keyframes marquee {
+  0% { transform: translateX(0); }
+  100% { transform: translateX(-50%); }
+}
+
+.track-artist {
+  font-size: calc(12 / 306 * var(--player-width));
+  color: var(--color-secondary);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: calc(160 / 306 * var(--player-width));
+}
+
+/* ── Progress bar drag seek target ── */
+.progress-seek {
+  position: absolute;
+  left: calc((140 - 110) / 306 * var(--player-width));
+  top: calc((469 - 23) / 306 * var(--player-width));
+  width: calc(241 / 306 * var(--player-width));
+  height: calc(8 / 306 * var(--player-width));
+  z-index: 155;
+  cursor: pointer;
+  pointer-events: auto;
+}
+
+.star-indicator {
+  z-index: 25;
+  pointer-events: none;
+  transition: transform 0.1s linear;
+}
+
+/* ── Time displays ── */
+.time-display {
+  position: absolute;
+  left: calc((136 - 110) / 306 * var(--player-width));
+  top: calc((479 - 23) / 306 * var(--player-width));
+  width: calc((382 - 136) / 306 * var(--player-width));
+  display: flex;
+  justify-content: space-between;
+  z-index: 50;
+  pointer-events: none;
+  font-size: calc(11 / 306 * var(--player-width));
+  color: var(--color-primary);
+}
+
+/* ── Volume adjustment slider ── */
+.volume-hover-zone {
+  position: absolute;
+  left: calc((363 - 110) / 306 * var(--player-width));
+  bottom: calc((512 - 412 - 23) / 306 * var(--player-width));
+  width: calc(20 / 306 * var(--player-width));
+  height: calc(18 / 306 * var(--player-width));
+  z-index: 155;
+  pointer-events: auto;
+}
+
+.btn-volume-icon {
+  position: absolute;
+  left: 0;
+  bottom: 0;
+  width: calc(20 / 306 * var(--player-width));
+  height: calc(20 / 306 * var(--player-width));
+  cursor: pointer;
+}
+
+.volume-hover-zone.expanded {
+  height: calc((420 - 338 + 25) / 306 * var(--player-width));
+}
+
+.volume-bar-area {
+  position: absolute;
+  left: calc((357 - 355) / 306 * var(--player-width));
+  top: calc(5 / 306 * var(--player-width));
+  width: calc(10 / 306 * var(--player-width));
+  height: calc((420 - 338) / 306 * var(--player-width));
+  cursor: pointer;
+}
+
+.layer.volume-bar-layer {
+  z-index: 150;
+  width: calc(526 / 306 * var(--player-width));
+  height: calc(526 / 306 * var(--player-width));
+}
+
+/* ── Settings retro dashboard ── */
+.settings-panel {
+  position: absolute;
+  top: calc((70 - 23) / 306 * var(--player-width));
+  right: calc(5 / 306 * var(--player-width));
+  z-index: 300;
+  pointer-events: auto;
+}
+
+.settings-panel-inner {
+  background: var(--color-primary);
+  border: calc(2 / 306 * var(--player-width)) solid var(--color-secondary);
+  border-radius: calc(4 / 306 * var(--player-width));
+  padding: calc(8 / 306 * var(--player-width));
+  width: calc(150 / 306 * var(--player-width));
+  max-height: calc(260 / 306 * var(--player-width));
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: calc(5 / 306 * var(--player-width));
+  box-shadow: 0 4px 15px rgba(0, 0, 0, 0.5);
+}
+
+.settings-label {
+  font-size: calc(10 / 306 * var(--player-width));
+  color: var(--color-panel-text);
+  letter-spacing: 0.5px;
+}
+
+.settings-theme-row {
+  display: flex;
+  gap: calc(4 / 306 * var(--player-width));
+}
+
+.settings-theme-btn {
+  flex: 1;
+  font-family: 'Rainyhearts', monospace;
+  font-size: calc(11 / 306 * var(--player-width));
+  background: rgba(0, 0, 0, 0.2);
+  border: calc(1 / 306 * var(--player-width)) solid var(--color-panel-text);
+  border-radius: calc(2 / 306 * var(--player-width));
+  color: var(--color-panel-text);
+  padding: calc(3 / 306 * var(--player-width)) calc(6 / 306 * var(--player-width));
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.settings-theme-btn:hover {
+  background: var(--color-panel-text);
+  color: var(--color-primary);
+}
+
+.settings-theme-btn.active {
+  background: var(--color-panel-text);
+  color: var(--color-primary);
+}
+
+.settings-yt-form {
+  display: flex;
+  gap: 4px;
+}
+
+.settings-input {
+  flex: 1;
+  font-family: 'Rainyhearts', monospace;
+  font-size: calc(10 / 306 * var(--player-width));
+  background: rgba(0, 0, 0, 0.3);
+  border: calc(1 / 306 * var(--player-width)) solid var(--color-panel-text);
+  border-radius: calc(2 / 306 * var(--player-width));
+  color: var(--color-panel-text);
+  padding: calc(3 / 306 * var(--player-width)) calc(4 / 306 * var(--player-width));
+  outline: none;
+}
+
+.yt-add-btn {
+  flex-grow: 0;
+  width: calc(24 / 306 * var(--player-width));
+  padding: 0;
+}
+
+.settings-error {
+  font-size: calc(9 / 306 * var(--player-width));
+  color: #ff8b8b;
+  word-break: break-all;
+}
+
+/* Custom Song List */
+.settings-playlist-list {
+  max-height: calc(100 / 306 * var(--player-width));
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: calc(3 / 306 * var(--player-width));
+}
+
+.playlist-item-row {
+  display: flex;
+  align-items: center;
+  background: rgba(0, 0, 0, 0.15);
+  border-radius: calc(2 / 306 * var(--player-width));
+  overflow: hidden;
+}
+
+.playlist-item-row.active-track {
+  background: rgba(255, 255, 255, 0.15);
+  border: 1px solid var(--color-panel-text);
+}
+
+.settings-playlist-item {
+  flex: 1;
+  text-align: left;
+  background: none;
+  border: none;
+  font-family: 'Rainyhearts', monospace;
+  font-size: calc(11 / 306 * var(--player-width));
+  color: var(--color-panel-text);
+  padding: calc(4 / 306 * var(--player-width)) calc(6 / 306 * var(--player-width));
+  cursor: pointer;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.playlist-item-delete {
+  background: none;
+  border: none;
+  color: #ff6b6b;
+  font-size: calc(14 / 306 * var(--player-width));
+  cursor: pointer;
+  padding: 0 calc(6 / 306 * var(--player-width));
+  font-weight: bold;
+}
+
+.playlist-item-delete:hover {
+  background: rgba(255, 0, 0, 0.2);
+}
+
+/* ── Intro Screen gateway ── */
+.intro-container {
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  align-items: center;
+  width: 100vw;
+  height: 100vh;
+  position: absolute;
+  top: 0;
+  left: 0;
+  background: linear-gradient(135deg, #1b0a17 0%, #0d040a 100%);
+  z-index: 500;
+  transition: opacity 1.2s ease-in-out;
+}
+
+.intro-container.fade-out {
+  opacity: 0;
+  pointer-events: none;
+}
+
+.intro-card {
+  text-align: center;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 20px;
+}
+
+.intro-title {
+  font-size: 3rem;
+  color: #F6CFC8;
+  margin: 0;
+  letter-spacing: 2px;
+  text-shadow: 3px 3px 0px #5a3a4a;
+}
+
+.intro-heart-envelope {
+  font-size: 5rem;
+  cursor: pointer;
+  transition: transform 0.3s ease;
+  filter: drop-shadow(0 5px 10px rgba(0,0,0,0.5));
+}
+
+.intro-heart-envelope:hover {
+  transform: scale(1.15) rotate(-3deg);
+}
+
+.pixel-heart-btn {
+  animation: heartbeat 1.2s infinite ease-in-out;
+}
+
+@keyframes heartbeat {
+  0% { transform: scale(1); }
+  30% { transform: scale(1.18); }
+  60% { transform: scale(1.05); }
+  100% { transform: scale(1); }
+}
+
+.intro-subtitle {
+  color: #8a6a7a;
+  font-size: 1.3rem;
+  line-height: 1.6;
+  cursor: pointer;
+}
+
+.intro-subtitle span {
+  color: #F6CFC8;
+  font-size: 1rem;
+}
+
+.blink-text {
+  animation: blink 2s infinite step-end;
+}
+
+@keyframes blink {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.6; }
+}
+
+/* Floating Hearts overlay on open */
+.floating-pixel-heart {
+  position: absolute;
+  z-index: 600;
+  opacity: 0;
+  pointer-events: none;
+  animation: floatUp 1.5s ease-out forwards;
+}
+
+@keyframes floatUp {
+  0% {
+    transform: translateY(0) scale(0.6) rotate(0deg);
+    opacity: 1;
+  }
+  100% {
+    transform: translateY(-250px) scale(1.4) rotate(15deg);
+    opacity: 0;
+  }
+}
+
+/* ── Custom Letter Overlay (Love Dedication) ── */
+.letter-overlay {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  background: rgba(0, 0, 0, 0.7);
+  z-index: 400;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  padding: 16px;
+  box-sizing: border-box;
+  animation: overlayFadeIn 0.3s ease-out forwards;
+}
+
+.letter-container {
+  background: #f9ebe0; /* Retro parchment paper color */
+  border: 4px solid #5a3a4a;
+  border-radius: 8px;
+  width: 90%;
+  max-width: calc(260 / 306 * var(--player-width));
+  height: 80%;
+  display: flex;
+  flex-direction: column;
+  padding: 16px;
+  box-sizing: border-box;
+  position: relative;
+  box-shadow: 0 10px 25px rgba(0,0,0,0.8);
+  animation: letterSlideUp 0.4s cubic-bezier(0.18, 0.89, 0.32, 1.15) forwards;
+}
+
+.letter-stamp {
+  position: absolute;
+  top: 8px;
+  right: 12px;
+  font-size: 24px;
+}
+
+.letter-title {
+  margin: 0 0 12px 0;
+  color: #5a3a4a;
+  font-size: 1.4rem;
+  border-bottom: 2px dashed #8a6a7a;
+  padding-bottom: 6px;
+}
+
+.letter-content {
+  flex: 1;
+  overflow-y: auto;
+  margin-bottom: 12px;
+  padding-right: 4px;
+  text-align: left;
+}
+
+.letter-body {
+  margin: 0 0 16px 0;
+  color: #2c1626;
+  font-size: 1.15rem;
+  line-height: 1.5;
+  white-space: pre-wrap;
+}
+
+.lyrics-divider {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin: 12px 0;
+  color: #8a6a7a;
+  font-size: 11px;
+}
+
+.lyrics-divider::before,
+.lyrics-divider::after {
+  content: '';
+  flex: 1;
+  height: 1px;
+  background: #8a6a7a;
+  margin: 0 10px;
+}
+
+.lyrics-text {
+  font-family: 'Rainyhearts', monospace;
+  font-size: 1.05rem;
+  color: #5a3a4a;
+  line-height: 1.4;
+  text-align: center;
+  margin: 0;
+}
+
+.letter-close-btn {
+  font-family: 'Rainyhearts', monospace;
+  font-size: 1.1rem;
+  background: #5a3a4a;
+  border: none;
+  border-radius: 4px;
+  color: #f9ebe0;
+  padding: 8px;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.letter-close-btn:hover {
+  background: #8a6a7a;
+  color: #f9ebe0;
+}
+
+@keyframes overlayFadeIn {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+@keyframes letterSlideUp {
+  from { transform: translateY(100px); }
+  to { transform: translateY(0); }
+}
+
+/* ── Custom Scrollbar for Retro feel ── */
+.scrollbar-custom::-webkit-scrollbar {
+  width: 4px;
+}
+
+.scrollbar-custom::-webkit-scrollbar-track {
+  background: rgba(0, 0, 0, 0.1);
+  border-radius: 2px;
+}
+
+.scrollbar-custom::-webkit-scrollbar-thumb {
+  background: var(--color-secondary);
+  border-radius: 2px;
+}
+
+.scrollbar-custom::-webkit-scrollbar-thumb:hover {
+  background: var(--color-panel-text);
+}
