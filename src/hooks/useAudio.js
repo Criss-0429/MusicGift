@@ -135,7 +135,7 @@ async function resolveYoutubeStream(videoId) {
       const controller = new AbortController();
       const timeoutId = setTimeout(() => controller.abort(), 6000); // 6s fast timeout per instance
 
-      const res = await fetch(`${instance}/api/v1/videos/${videoId}`, { signal: controller.signal });
+      const res = await fetch(`${instance}/api/v1/videos/${videoId}?local=true`, { signal: controller.signal });
       clearTimeout(timeoutId);
 
       if (!res.ok) continue;
@@ -157,9 +157,14 @@ async function resolveYoutubeStream(videoId) {
             thumbnailUrl = thumbnailUrl.replace('http://', 'https://');
           }
 
+          let streamUrl = chosenStream.url;
+          if (streamUrl && streamUrl.startsWith('http://')) {
+            streamUrl = streamUrl.replace('http://', 'https://');
+          }
+
           console.log(`[Cupid Audio] Resolved successfully from Invidious instance: ${instance}`);
           return {
-            streamUrl: chosenStream.url,
+            streamUrl: streamUrl,
             title: data.title,
             uploader: data.author || data.uploader || 'YouTube Stream',
             thumbnailUrl: thumbnailUrl
