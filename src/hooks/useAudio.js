@@ -12,10 +12,11 @@ const PIPED_INSTANCES = [
 
 // Dynamic cache of active instances fetched at runtime
 let dynamicInstances = [];
+let dynamicInvidiousInstances = [];
 
 /**
  * Background worker to fetch currently active Piped instances from the official checker.
- * Prepend active servers to provide 100% future-proofing.
+ * Prepend active servers to provide future-proofing.
  */
 async function fetchDynamicInstances() {
   try {
@@ -40,56 +41,176 @@ async function fetchDynamicInstances() {
       }
     }
   } catch (err) {
-    console.warn('[Cupid Audio] Failed to fetch dynamic instances (CORS/network), utilizing pre-packed high availability list.', err);
+    console.warn('[Cupid Audio] Failed to fetch dynamic Piped instances (CORS/network), utilizing pre-packed high availability list.', err);
   }
 }
 
-// Fire dynamic fetch in background on script load
+/**
+ * Background worker to fetch currently active Invidious instances from the official Invidious directory.
+ */
+async function fetchDynamicInvidiousInstances() {
+  try {
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 4000); // 4s timeout
+
+    const res = await fetch('https://api.invidious.io/instances.json', { signal: controller.signal });
+    clearTimeout(timeoutId);
+
+    if (!res.ok) return;
+    const data = await res.json();
+
+    if (Array.isArray(data)) {
+      const urls = [];
+      for (const item of data) {
+        const domain = item[0];
+        const details = item[1];
+        const uri = details.uri || `https://${domain}`;
+        
+        // Exclude darknet (onion/i2p/ygg) domains
+        if (uri && !uri.includes('.onion') && !uri.includes('.i2p') && !uri.includes('.ygg')) {
+          urls.push({
+            uri: uri.replace(/\/$/, ''),
+            cors: details.cors === true,
+            uptime: details.monitor?.uptime || 0
+          });
+        }
+      }
+      
+      // Sort so that CORS-enabled instances are queried first, then sort by uptime
+      urls.sort((a, b) => {
+        if (a.cors && !b.cors) return -1;
+        if (!a.cors && b.cors) return 1;
+        return b.uptime - a.uptime;
+      });
+
+      if (urls.length > 0) {
+        dynamicInvidiousInstances = urls.map(item => item.uri);
+        console.log('[Cupid Audio] Dynamic active Invidious API list loaded successfully:', dynamicInvidiousInstances);
+      }
+    }
+  } catch (err) {
+    console.warn('[Cupid Audio] Failed to fetch dynamic Invidious instances (CORS/network):', err);
+  }
+}
+
+// Fire dynamic fetches in background on script load
 if (typeof window !== 'undefined') {
   fetchDynamicInstances();
+  fetchDynamicInvidiousInstances();
 }
 
 /**
- * Robust helper to resolve direct audio stream from a YouTube video ID.
- * Tries dynamic instances first, then hardcoded backups.
+ * Highly robust, tiered stream resolver.
+ * 1. Tries verified CORS-enabled public Invidious instances (very stable and loose rate-limits).
+ * 2. Cascades through dynamic Invidious instances.
+ * 3. Cascades through dynamic/hardcoded Piped instances as final fallback.
  */
 async function resolveYoutubeStream(videoId) {
   let lastError = null;
-  
-  // Merge dynamic instances with our hardcoded fallbacks, removing duplicates
-  const instances = [...new Set([...dynamicInstances, ...PIPED_INSTANCES])];
-  
-  for (const instance of instances) {
+
+  // Tier 1: Prioritize verified CORS-enabled and active Invidious instances
+  const invidiousInstances = [
+    'https://inv.thepixora.com', // Active verified CORS-enabled instance
+    ...dynamicInvidiousInstances,
+    'https://invidious.flokinet.to',
+    'https://invidious.privacydev.net',
+    'https://invidious.lunar.icu',
+    'https://yewtu.be'
+  ];
+
+  // Merge lists, removing duplicates and ensuring darknet is filtered
+  const uniqueInvidious = [...new Set(invidiousInstances)].filter(
+    url => url && !url.includes('.onion') && !url.includes('.i2p') && !url.includes('.ygg')
+  );
+
+  // Piped list as Tier 2 fallback
+  const pipedInstances = [...new Set([...dynamicInstances, ...PIPED_INSTANCES])];
+
+  console.log(`[Cupid Audio] Resolving YouTube stream for ${videoId}...`);
+
+  // Try Invidious First
+  for (const instance of uniqueInvidious) {
     try {
+      console.log(`[Cupid Audio] Attempting Invidious instance: ${instance}`);
       const controller = new AbortController();
-      const timeoutId = setTimeout(() => controller.abort(), 10000); // 10s timeout per instance
+      const timeoutId = setTimeout(() => controller.abort(), 6000); // 6s fast timeout per instance
+
+      const res = await fetch(`${instance}/api/v1/videos/${videoId}`, { signal: controller.signal });
+      clearTimeout(timeoutId);
+
+      if (!res.ok) continue;
+      const data = await res.json();
+
+      if (data.adaptiveFormats && data.adaptiveFormats.length > 0) {
+        // Invidious formats are stored under 'type' (e.g. 'audio/mp4; codecs="mp4a.40.2"')
+        const audioStreams = data.adaptiveFormats.filter(s => s.type && s.type.startsWith('audio/'));
+        if (audioStreams.length > 0) {
+          // Prefer M4A for iOS background compatibility, otherwise take first
+          const m4aStream = audioStreams.find(s => s.type.includes('audio/mp4') || s.container === 'm4a');
+          const chosenStream = m4aStream || audioStreams[0];
+
+          let thumbnailUrl = data.videoThumbnails?.find(t => t.quality === 'medium' || t.quality === 'default')?.url 
+            || `https://i.ytimg.com/vi/${videoId}/mqdefault.jpg`;
+
+          // Secure mixed content if uploader provides http:// URLs
+          if (thumbnailUrl && thumbnailUrl.startsWith('http://')) {
+            thumbnailUrl = thumbnailUrl.replace('http://', 'https://');
+          }
+
+          console.log(`[Cupid Audio] Resolved successfully from Invidious instance: ${instance}`);
+          return {
+            streamUrl: chosenStream.url,
+            title: data.title,
+            uploader: data.author || data.uploader || 'YouTube Stream',
+            thumbnailUrl: thumbnailUrl
+          };
+        }
+      }
+    } catch (err) {
+      console.warn(`[Cupid Audio] Invidious instance ${instance} failed:`, err.message);
+      lastError = err;
+    }
+  }
+
+  // Fallback to Piped if all Invidious instances fail
+  console.log(`[Cupid Audio] Invidious failed or returned no streams. Falling back to Piped...`);
+  for (const instance of pipedInstances) {
+    try {
+      console.log(`[Cupid Audio] Attempting Piped instance: ${instance}`);
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 6000); // 6s fast timeout
 
       const res = await fetch(`${instance}/streams/${videoId}`, { signal: controller.signal });
       clearTimeout(timeoutId);
 
       if (!res.ok) continue;
       const data = await res.json();
-      
-      // Get the highest quality audio stream (usually 128kbps M4A or WebM)
+
       if (data.audioStreams && data.audioStreams.length > 0) {
-        // Prefer M4A for iOS background compatibility, otherwise take first
+        // Prefer M4A for iOS background compatibility
         const m4aStream = data.audioStreams.find(s => s.format === 'M4A' || s.mimeType?.includes('audio/mp4'));
         const chosenStream = m4aStream || data.audioStreams[0];
-        
-        // Return stream URL, plus metadata if needed
+
+        let thumbnailUrl = data.thumbnailUrl;
+        if (thumbnailUrl && thumbnailUrl.startsWith('http://')) {
+          thumbnailUrl = thumbnailUrl.replace('http://', 'https://');
+        }
+
+        console.log(`[Cupid Audio] Resolved successfully from Piped instance: ${instance}`);
         return {
           streamUrl: chosenStream.url,
           title: data.title,
           uploader: data.uploader,
-          thumbnailUrl: data.thumbnailUrl
+          thumbnailUrl: thumbnailUrl
         };
       }
     } catch (err) {
-      console.warn(`[Cupid Audio] Piped instance ${instance} failed to resolve ${videoId}:`, err);
+      console.warn(`[Cupid Audio] Piped instance ${instance} failed:`, err.message);
       lastError = err;
     }
   }
-  throw new Error(lastError ? `Could not resolve stream: ${lastError.message}` : 'Failed to resolve YouTube audio stream across all servers.');
+
+  throw new Error(lastError ? `Could not resolve stream: ${lastError.message}` : 'Failed to resolve YouTube audio stream across all Invidious and Piped servers.');
 }
 
 export default function useAudio(tracks, playMode = 'normal') {
